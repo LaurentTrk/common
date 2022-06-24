@@ -243,7 +243,7 @@ describe('pair', (): void => {
     expect(keyring.alice.decrypt(encryptedMessage)).toEqual(null);
   });
 
-  it('allows encrypt/decrypt with sr25519 keypair', (): void => {
+  it('allows encrypt/decrypt with sr25519 keypairs', (): void => {
     const aliceSR25519KeyPair = new Keyring().createFromUri(mnemonicGenerate(), { name: 'sr25519 pair' }, 'sr25519');
     const bobSR25519KeyPair = new Keyring().createFromUri(mnemonicGenerate(), { name: 'sr25519 pair' }, 'sr25519');
     const message = new Uint8Array([0x61, 0x62, 0x63, 0x64, 0x65]);
@@ -253,11 +253,40 @@ describe('pair', (): void => {
     expect((): Uint8Array | null => aliceSR25519KeyPair.decrypt(encryptedMessage)).toThrow("Mac values don't match");
   });
 
+  it('allows encrypt/decrypt with ed25519 keypair and type guessing', (): void => {
+    const keyring = new Keyring();
+    const bobED25519KeyPair = keyring.addFromUri(mnemonicGenerate(), { name: 'ed25519 pair' }, 'ed25519');
+    const message = new Uint8Array([0x61, 0x62, 0x63, 0x64, 0x65]);
+    const encryptedMessage = keyring.encrypt(message, bobED25519KeyPair.publicKey);
+
+    expect(keyring.decrypt(encryptedMessage)).toEqual(message);
+  });
+
+  it('allows encrypt/decrypt with sr25519 keypair and type guessing with non-convertible public key', (): void => {
+    const keyring = new Keyring();
+    const mnemonic = "easily dust bright surface scale walnut stick buddy spare quick trial crane";
+    const bobSR25519KeyPair = keyring.addFromUri(mnemonic, { name: 'sr25519 pair' }, 'sr25519');
+    const message = new Uint8Array([0x61, 0x62, 0x63, 0x64, 0x65]);
+    const encryptedMessage = keyring.encrypt(message, bobSR25519KeyPair.publicKey);
+
+    expect(keyring.decrypt(encryptedMessage)).toEqual(message);
+  });
+
+  it('allows encrypt/decrypt with sr25519 keypair and type guessing with convertible public key', (): void => {
+    const keyring = new Keyring();
+    const mnemonic = "excess control wrestle sustain gauge swear unveil trap tunnel coil nurse salt";
+    const bobSR25519KeyPair = keyring.addFromUri(mnemonic, { name: 'sr25519 pair' }, 'sr25519');
+    const message = new Uint8Array([0x61, 0x62, 0x63, 0x64, 0x65]);
+    const encryptedMessage = keyring.encrypt(message, bobSR25519KeyPair.publicKey);
+
+    expect(keyring.decrypt(encryptedMessage)).toEqual(message);
+  });
+
   it('allows encrypt for an ed25519 keypair', (): void => {
     const message = new Uint8Array([0x61, 0x62, 0x63, 0x64, 0x65]);
     const encryptedMessage = new Keyring().encrypt(message, keyring.alice.publicKey, keyring.alice.type);
 
-    expect(keyring.alice.decrypt(encryptedMessage)).toEqual(message);
+    expect(keyring.alice.decrypt(encryptedMessage.slice(32))).toEqual(message);
   });
 
   it('allows encrypt for an sr25519 keypair', (): void => {
@@ -266,7 +295,7 @@ describe('pair', (): void => {
     const message = new Uint8Array([0x61, 0x62, 0x63, 0x64, 0x65]);
     const encryptedMessage = keyring.encrypt(message, sr25519KeyPair.publicKey, sr25519KeyPair.type);
 
-    expect(sr25519KeyPair.decrypt(encryptedMessage)).toEqual(message);
+    expect(sr25519KeyPair.decrypt(encryptedMessage.slice(32))).toEqual(message);
   });
 
   it('fails to encrypt when locked', (): void => {

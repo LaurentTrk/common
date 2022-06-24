@@ -4,8 +4,8 @@
 import type { EncryptedJsonEncoding, Keypair, KeypairType } from '@polkadot/util-crypto/types';
 import type { KeyringInstance, KeyringOptions, KeyringPair, KeyringPair$Json, KeyringPair$Meta } from './types';
 
-import { assert, hexToU8a, isHex, isUndefined, stringToU8a } from '@polkadot/util';
-import { base64Decode, decodeAddress, ed25519PairFromSeed as ed25519FromSeed, encodeAddress, encrypt as cryptoEncrypt, ethereumEncode, hdEthereum, keyExtractSuri, keyFromPath, mnemonicToLegacySeed, mnemonicToMiniSecret, secp256k1PairFromSeed as secp256k1FromSeed, sr25519PairFromSeed as sr25519FromSeed } from '@polkadot/util-crypto';
+import { assert, hexToU8a, isHex, isUndefined, stringToU8a, u8aConcat } from '@polkadot/util';
+import { base64Decode, decodeAddress, ed25519PairFromSeed as ed25519FromSeed, encodeAddress, encrypt as cryptoEncrypt, ethereumEncode, hdEthereum, keyExtractSuri, keyFromPath, mnemonicToLegacySeed, mnemonicToMiniSecret, secp256k1PairFromSeed as secp256k1FromSeed, sr25519PairFromSeed as sr25519FromSeed, convertPublicKeyToCurve25519, sr25519DerivePublic } from '@polkadot/util-crypto';
 
 import { DEV_PHRASE } from './defaults';
 import { createPair } from './pair';
@@ -304,6 +304,33 @@ export class Keyring implements KeyringInstance {
    * The encrypted message can be decrypted by the corresponding keypair using keypair.decrypt() method
    */
   public encrypt (message: string | Uint8Array, recipientPublicKey: string | Uint8Array, recipientKeyType?: KeypairType): Uint8Array {
-    return cryptoEncrypt(message, recipientPublicKey, recipientKeyType || this.type);
+    const publicKey = decodeAddress(recipientPublicKey);
+    let keyType = recipientKeyType ? recipientKeyType : this.guessKeyType(publicKey);
+    const encryptedMessage = cryptoEncrypt(message, recipientPublicKey, keyType);
+    return u8aConcat(publicKey, encryptedMessage);
+  }
+
+  private guessKeyType (publicKey: Uint8Array): KeypairType {
+    if(this.isEd25519PublicKey(publicKey)) {
+      return "ed25519";
+    } {
+      return "sr25519";
+    }
+  }
+
+  private isEd25519PublicKey (publicKey: Uint8Array): boolean {
+    try {
+      convertPublicKeyToCurve25519(publicKey);
+      return true;
+    } catch(e) {
+      return false;
+    }
+  }
+
+  public decrypt (message: Uint8Array): Uint8Array | null {
+    const publicKeyBytes = message.slice(0, 32);
+    const encryptedMessage = message.slice(32);
+    const keyPair = this.getPair(publicKeyBytes);
+    return keyPair.decrypt(encryptedMessage);
   }
 }
